@@ -8,7 +8,11 @@ export function useDialogueLoop({ speak, onBotMessage, setListening }) {
     setMessages(msgs => [...msgs, { role: "user", content: userText }]);
     onBotMessage({ role: "user", content: userText });
     setListening(false);
-    const audioUrl = await fetchGptResponse([...messages, { role: "user", content: userText }]);
+    const { audioUrl, text } = await fetchGptResponse([...messages, { role: "user", content: userText }]);
+    if (text) {
+      setMessages(msgs => [...msgs, { role: "assistant", content: text }]);
+      onBotMessage({ role: "assistant", content: text });
+    }
     await speak(audioUrl);
     setListening(true);
   }, [messages, speak, onBotMessage, setListening]);
