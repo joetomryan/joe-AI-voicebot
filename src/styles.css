@@ -1,0 +1,123 @@
+body, html, #root, .app-container {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', Arial, sans-serif;
+  background: #181a1b;
+}
+.app-container {
+  min-height: 100vh;
+  background: #181a1b;
+  color: #f7f7f9;
+  transition: background 0.2s, color 0.2s;
+}
+
+.comic-header {
+  width: 100%;
+  text-align: center;
+  font-family: 'Comic Sans MS', 'Comic Sans', cursive, sans-serif;
+  font-size: 2.2rem;
+  letter-spacing: 2px;
+  color: #ffeb3b;
+  text-shadow: 2px 2px 0 #222, 4px 4px 0 #007aff;
+  margin: 0 0 18px 0;
+  padding: 18px 0 0 0;
+  user-select: none;
+}
+
+.main-area {
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 16px 8px 16px 8px;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+.avatar-area {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+.chat-area {
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  max-height: 60vh;
+  scroll-behavior: smooth;
+}
+@media (max-width: 600px) {
+  .main-area {
+    padding: 8px 2px 8px 2px;
+  }
+  .chat-area {
+    max-height: 50vh;
+  }
+  .comic-header {
+    font-size: 1.4rem;
+    padding: 10px 0 0 0;
+  }
+}
+
+.bot-avatar.talking {
+  animation: bot-pulse 0.7s infinite alternate;
+  box-shadow: 0 0 0 0 #007aff, 0 0 16px 8px #007aff44;
+}
+
+@keyframes bot-pulse {
+  0% {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1), 0 0 0 0 #007aff, 0 0 0 0 #007aff44;
+  }
+  100% {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1), 0 0 16px 8px #007aff, 0 0 32px 16px #007aff44;
+  }
+}
+
+.joe-thinking-loader {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: 'Comic Sans MS', 'Comic Sans', cursive, sans-serif;
+  font-size: 1.2rem;
+  color: #ffeb3b;
+  margin-bottom: 10px;
+  letter-spacing: 1px;
+  user-select: none;
+}
+.joe-thinking-loader .dot {
+  animation: thinking-bounce 1.2s infinite;
+  display: inline-block;
+  margin: 0 1px;
+}
+.joe-thinking-loader .dot:nth-child(15) { animation-delay: 0.1s; }
+.joe-thinking-loader .dot:nth-child(16) { animation-delay: 0.2s; }
+.joe-thinking-loader .dot:nth-child(17) { animation-delay: 0.3s; }
+
+@keyframes thinking-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.prestart-message {
+  text-align: center;
+  margin: 18px 0 0 0;
+  font-size: 1.1rem;
+  color: #fffbe7;
+  background: #222;
+  border-radius: 12px;
+  padding: 10px 18px;
+  box-shadow: 0 2px 8px #0002;
+  max-width: 90vw;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.network-delay-message {
+  text-align: center;
+  font-size: 0.95rem;
+  color: #b0b0b0;
+  margin: 18px 0 8px 0;
+  padding: 4px 0;
+  user-select: none;
+} 
