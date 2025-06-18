@@ -174,9 +174,8 @@ module.exports = async (req, res) => {
   if (!ttsResponse.audioContent) {
     return res.status(500).json({ error: 'TTS failed' });
   }
-  res.setHeader('Content-Type', 'application/json');
-  res.status(200).json({
-    text: gptText,
-    audio: ttsResponse.audioContent, // base64-encoded MP3
-  });
+  const audioBuffer = Buffer.from(ttsResponse.audioContent, 'base64');
+  res.setHeader('Content-Type', 'audio/mpeg');
+  res.setHeader('Content-Length', audioBuffer.length);
+  res.status(200).send(audioBuffer);
 }; 

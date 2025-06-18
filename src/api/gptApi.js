@@ -8,9 +8,7 @@ export async function fetchGptResponse(messages) {
   if (!response.ok) {
     return { audioUrl: null, text: null };
   }
-  const { text, audio } = await response.json();
-  // Convert base64 to Blob URL
-  const audioBlob = new Blob([Uint8Array.from(atob(audio), c => c.charCodeAt(0))], { type: "audio/mpeg" });
+  const audioBlob = await response.blob();
   const audioUrl = URL.createObjectURL(audioBlob);
-  return { audioUrl, text };
+  return { audioUrl, text: null };
 } 
