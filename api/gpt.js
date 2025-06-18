@@ -146,9 +146,7 @@ module.exports = async (req, res) => {
     return res.status(500).json({ error: 'API key or system prompt not set' });
   }
 
-  res.setHeader('Content-Type', 'multipart/x-mixed-replace; boundary=joe-boundary');
-  res.setHeader('Transfer-Encoding', 'chunked');
-
+  // Get GPT response (no streaming)
   const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -161,65 +159,23 @@ module.exports = async (req, res) => {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: prompt }
       ],
-      stream: true,
+      stream: false,
     }),
   });
+  const openaiJson = await openaiRes.json();
+  const gptText = openaiJson.choices?.[0]?.message?.content || '';
 
-  const rl = readline.createInterface({
-    input: openaiRes.body,
-    crlfDelay: Infinity
+  // Google TTS for the full text
+  const [ttsResponse] = await client.synthesizeSpeech({
+    input: { text: gptText },
+    voice: { languageCode: 'en-US', ssmlGender: 'MALE' },
+    audioConfig: { audioEncoding: 'MP3' },
   });
-
-  let buffer = '';
-  let sentenceBuffer = '';
-  let fullText = '';
-
-  for await (const line of rl) {
-    if (line.startsWith('data: ')) {
-      const data = line.replace('data: ', '').trim();
-      if (data === '[DONE]') break;
-      try {
-        const parsed = JSON.parse(data);
-        const delta = parsed.choices?.[0]?.delta?.content;
-        if (delta) {
-          sentenceBuffer += delta;
-          fullText += delta;
-          if (isSentenceComplete(sentenceBuffer)) {
-            // Google TTS for this sentence
-            const [ttsResponse] = await client.synthesizeSpeech({
-              input: { text: sentenceBuffer },
-              voice: { languageCode: 'en-US', ssmlGender: 'MALE' },
-              audioConfig: { audioEncoding: 'MP3' },
-            });
-            if (ttsResponse.audioContent) {
-              res.write(`--joe-boundary\r\nContent-Type: audio/mpeg\r\n\r\n`);
-              res.write(Buffer.from(ttsResponse.audioContent, 'base64'));
-              res.write('\r\n');
-            }
-            sentenceBuffer = '';
-          }
-        }
-      } catch (e) {
-        // Ignore JSON parse errors for incomplete lines
-      }
-    }
+  if (!ttsResponse.audioContent) {
+    return res.status(500).json({ error: 'TTS failed' });
   }
-  // If any text remains, synthesize it too
-  if (sentenceBuffer.trim()) {
-    const [ttsResponse] = await client.synthesizeSpeech({
-      input: { text: sentenceBuffer },
-      voice: { languageCode: 'en-US', ssmlGender: 'MALE' },
-      audioConfig: { audioEncoding: 'MP3' },
-    });
-    if (ttsResponse.audioContent) {
-      res.write(`--joe-boundary\r\nContent-Type: audio/mpeg\r\n\r\n`);
-      res.write(Buffer.from(ttsResponse.audioContent, 'base64'));
-      res.write('\r\n');
-    }
-  }
-  // Send the full text as the last part
-  res.write(`--joe-boundary\r\nContent-Type: application/json\r\n\r\n`);
-  res.write(JSON.stringify({ text: fullText }));
-  res.write('\r\n--joe-boundary--\r\n');
-  res.end();
+  const audioBuffer = Buffer.from(ttsResponse.audioContent, 'base64');
+  res.setHeader('Content-Type', 'audio/mpeg');
+  res.setHeader('Content-Length', audioBuffer.length);
+  res.status(200).send(audioBuffer);
 }; 
