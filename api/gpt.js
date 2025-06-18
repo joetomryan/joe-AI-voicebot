@@ -115,6 +115,10 @@ function getTemplateAnswer(userPrompt) {
   return null;
 }
 
+function isSentenceComplete(text) {
+  return /[.!?]\s*$/.test(text);
+}
+
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -123,44 +127,88 @@ module.exports = async (req, res) => {
   const { prompt } = req.body;
   const apiKey = process.env.OPENAI_API_KEY;
   const systemPrompt = process.env.GPT_SYSTEM_PROMPT;
-
-  if (!apiKey) {
-    return res.status(500).json({ error: 'OpenAI API key not set' });
-  }
-  if (!systemPrompt) {
-    return res.status(500).json({ error: 'System prompt not set' });
+  if (!apiKey || !systemPrompt) {
+    return res.status(500).json({ error: 'API key or system prompt not set' });
   }
 
-  // Check for template answer first
-  const templateAnswer = getTemplateAnswer(prompt);
-  if (templateAnswer) {
-    return res.status(200).json({
-      choices: [
-        { message: { content: templateAnswer } }
-      ]
-    });
-  }
+  res.setHeader('Content-Type', 'audio/mpeg');
+  res.setHeader('Transfer-Encoding', 'chunked');
 
-  try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+  const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'gpt-4',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: prompt }
+      ],
+      stream: true,
+    }),
+  });
+
+  const reader = openaiRes.body.getReader();
+  let buffer = '';
+  let sentenceBuffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const chunk = Buffer.from(value).toString('utf8');
+    buffer += chunk;
+    const lines = buffer.split('\n');
+    buffer = lines.pop();
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        const data = line.replace('data: ', '').trim();
+        if (data === '[DONE]') break;
+        try {
+          const parsed = JSON.parse(data);
+          const delta = parsed.choices?.[0]?.delta?.content;
+          if (delta) {
+            sentenceBuffer += delta;
+            if (isSentenceComplete(sentenceBuffer)) {
+              // Call ElevenLabs for this sentence
+              const elevenRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/XIDOAz3OiK7rivbjZsDf`, {
+                method: 'POST',
+                headers: {
+                  'xi-api-key': process.env.ELEVENLABS_API_KEY,
+                  'Content-Type': 'application/json',
+                  'Accept': 'audio/mpeg',
+                },
+                body: JSON.stringify({ text: sentenceBuffer }),
+              });
+              if (elevenRes.ok) {
+                const audioChunk = await elevenRes.buffer();
+                res.write(audioChunk);
+              }
+              sentenceBuffer = '';
+            }
+          }
+        } catch (e) {
+          // Ignore JSON parse errors for incomplete lines
+        }
+      }
+    }
+  }
+  // If any text remains, synthesize it too
+  if (sentenceBuffer.trim()) {
+    const elevenRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/XIDOAz3OiK7rivbjZsDf`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        'xi-api-key': process.env.ELEVENLABS_API_KEY,
         'Content-Type': 'application/json',
+        'Accept': 'audio/mpeg',
       },
-      body: JSON.stringify({
-        model: 'gpt-4',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...joeExamples,
-          { role: 'user', content: prompt }
-        ],
-      }),
+      body: JSON.stringify({ text: sentenceBuffer }),
     });
-
-    const data = await response.json();
-    res.status(200).json(data);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    if (elevenRes.ok) {
+      const audioChunk = await elevenRes.buffer();
+      res.write(audioChunk);
+    }
   }
+  res.end();
 }; 
