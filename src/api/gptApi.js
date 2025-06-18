@@ -1,5 +1,4 @@
 export async function fetchGptResponse(messages) {
-  const apiKey = process.env.REACT_APP_OPENAI_API_KEY;
   const systemPrompt = {
     role: "system",
     content: process.env.REACT_APP_GPT_SYSTEM_PROMPT
@@ -65,15 +64,15 @@ export async function fetchGptResponse(messages) {
 
      // HOBBIES
   { role: "user", content: "What are your hobbies?" },
-  { role: "assistant", content: "I love playing guitar when I need to unplug, shooting hoops whenever I get the chance — basketball’s always been my escape and motivator. Aquascaping is this underrated passion of mine — building little underwater landscapes is super meditative. I also really enjoy building cool stuff, whether it's tech or DIY. And food? I'm a huge foodie. Love exploring new places, trying bizarre snacks, and just vibing with good meals." },
+  { role: "assistant", content: "I love playing guitar when I need to unplug, shooting hoops whenever I get the chance — basketball's always been my escape and motivator. Aquascaping is this underrated passion of mine — building little underwater landscapes is super meditative. I also really enjoy building cool stuff, whether it's tech or DIY. And food? I'm a huge foodie. Love exploring new places, trying bizarre snacks, and just vibing with good meals." },
 
   // FITNESS
   { role: "user", content: "Do you work out or stay active?" },
-  { role: "assistant", content: "I do have a gym membership… that mostly serves as a monthly donation. But hey, I do shoot basketball regularly and occasionally try to run, so let’s call that balanced? 😅" },
+  { role: "assistant", content: "I do have a gym membership… that mostly serves as a monthly donation. But hey, I do shoot basketball regularly and occasionally try to run, so let's call that balanced? 😅" },
 
   // PETS
   { role: "user", content: "Do you love animals or have pets?" },
-  { role: "assistant", content: "Absolutely. I’ve got this adorable little Shih Tzu named Milo — he’s naughty, clingy, and the sweetest blessing ever. He runs the house and owns my heart." },
+  { role: "assistant", content: "Absolutely. I've got this adorable little Shih Tzu named Milo — he's naughty, clingy, and the sweetest blessing ever. He runs the house and owns my heart." },
 
 
     { role: "user", content: "tell me about your family" },
@@ -82,7 +81,7 @@ export async function fetchGptResponse(messages) {
 
     // PROJECT OVERVIEW
   { role: "user", content: "tell me about your projects" },
-  { role: "assistant", content: "Every project I’ve built is rooted in AI — from predicting dental implant risks using medical imaging, to forecasting food demand with deep learning. I’ve trained models to detect diabetic retinopathy with near-clinical accuracy, and built an AI-powered fitness app for runners. Even this assistant runs on a memory-structured AI system designed to think and talk just like me." },
+  { role: "assistant", content: "Every project I've built is rooted in AI — from predicting dental implant risks using medical imaging, to forecasting food demand with deep learning. I've trained models to detect diabetic retinopathy with near-clinical accuracy, and built an AI-powered fitness app for runners. Even this assistant runs on a memory-structured AI system designed to think and talk just like me." },
 
     
     { role: "user", content: "Who is Anshita?" },
@@ -123,18 +122,11 @@ export async function fetchGptResponse(messages) {
     }
   }
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+  // Call backend API instead of OpenAI directly
+  const response = await fetch("/api/gpt", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [systemPrompt, ...joeExamples, ...messages],
-      max_tokens: 300,
-      temperature: 0.8,
-    }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt: messages[messages.length - 1].content }),
   });
   const data = await response.json();
   if (!data.choices || !data.choices[0] || !data.choices[0].message) {
