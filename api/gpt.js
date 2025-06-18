@@ -1,4 +1,18 @@
 const fetch = require('node-fetch');
+const textToSpeech = require('@google-cloud/text-to-speech');
+const fs = require('fs');
+const path = require('path');
+
+// Write the key to a temp file if running on Vercel
+let keyPath = path.join(__dirname, '../google-tts-key.json');
+if (process.env.GOOGLE_TTS_KEY_B64) {
+  keyPath = '/tmp/google-tts-key.json';
+  fs.writeFileSync(keyPath, Buffer.from(process.env.GOOGLE_TTS_KEY_B64, 'base64'));
+}
+
+const client = new textToSpeech.TextToSpeechClient({
+  keyFilename: keyPath,
+});
 
 // Joe's template Q&A pairs
 const joeExamples = [
@@ -171,19 +185,14 @@ module.exports = async (req, res) => {
           if (delta) {
             sentenceBuffer += delta;
             if (isSentenceComplete(sentenceBuffer)) {
-              // Call ElevenLabs for this sentence
-              const elevenRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/XIDOAz3OiK7rivbjZsDf`, {
-                method: 'POST',
-                headers: {
-                  'xi-api-key': process.env.ELEVENLABS_API_KEY,
-                  'Content-Type': 'application/json',
-                  'Accept': 'audio/mpeg',
-                },
-                body: JSON.stringify({ text: sentenceBuffer }),
+              // Google TTS for this sentence
+              const [ttsResponse] = await client.synthesizeSpeech({
+                input: { text: sentenceBuffer },
+                voice: { languageCode: 'en-US', ssmlGender: 'MALE' },
+                audioConfig: { audioEncoding: 'MP3' },
               });
-              if (elevenRes.ok) {
-                const audioChunk = await elevenRes.buffer();
-                res.write(audioChunk);
+              if (ttsResponse.audioContent) {
+                res.write(Buffer.from(ttsResponse.audioContent, 'base64'));
               }
               sentenceBuffer = '';
             }
@@ -196,18 +205,13 @@ module.exports = async (req, res) => {
   }
   // If any text remains, synthesize it too
   if (sentenceBuffer.trim()) {
-    const elevenRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/XIDOAz3OiK7rivbjZsDf`, {
-      method: 'POST',
-      headers: {
-        'xi-api-key': process.env.ELEVENLABS_API_KEY,
-        'Content-Type': 'application/json',
-        'Accept': 'audio/mpeg',
-      },
-      body: JSON.stringify({ text: sentenceBuffer }),
+    const [ttsResponse] = await client.synthesizeSpeech({
+      input: { text: sentenceBuffer },
+      voice: { languageCode: 'en-US', ssmlGender: 'MALE' },
+      audioConfig: { audioEncoding: 'MP3' },
     });
-    if (elevenRes.ok) {
-      const audioChunk = await elevenRes.buffer();
-      res.write(audioChunk);
+    if (ttsResponse.audioContent) {
+      res.write(Buffer.from(ttsResponse.audioContent, 'base64'));
     }
   }
   res.end();
