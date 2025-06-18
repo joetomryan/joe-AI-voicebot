@@ -97,7 +97,7 @@ function normalize(str) {
 function getTemplateAnswer(userPrompt) {
   // Build template Q&A pairs
   const templatePairs = [];
-  for (let i = 0; i < joeExamples.length - 1; i++) {
+  for (let i = 0; i < joeExamples.length - 1; i += 2) {
     if (joeExamples[i].role === "user" && joeExamples[i + 1].role === "assistant") {
       templatePairs.push({
         question: normalize(joeExamples[i].content),
@@ -152,6 +152,7 @@ module.exports = async (req, res) => {
         model: 'gpt-4',
         messages: [
           { role: 'system', content: systemPrompt },
+          ...joeExamples,
           { role: 'user', content: prompt }
         ],
       }),
