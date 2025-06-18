@@ -2,6 +2,7 @@ const fetch = require('node-fetch');
 const textToSpeech = require('@google-cloud/text-to-speech');
 const fs = require('fs');
 const path = require('path');
+const readline = require('readline');
 
 // Write the key to a temp file if running on Vercel
 let keyPath = path.join(__dirname, '../google-tts-key.json');
@@ -145,7 +146,7 @@ module.exports = async (req, res) => {
     return res.status(500).json({ error: 'API key or system prompt not set' });
   }
 
-  res.setHeader('Content-Type', 'audio/mpeg');
+  res.setHeader('Content-Type', 'multipart/x-mixed-replace; boundary=joe-boundary');
   res.setHeader('Transfer-Encoding', 'chunked');
 
   const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -164,42 +165,42 @@ module.exports = async (req, res) => {
     }),
   });
 
-  const reader = openaiRes.body.getReader();
+  const rl = readline.createInterface({
+    input: openaiRes.body,
+    crlfDelay: Infinity
+  });
+
   let buffer = '';
   let sentenceBuffer = '';
+  let fullText = '';
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const chunk = Buffer.from(value).toString('utf8');
-    buffer += chunk;
-    const lines = buffer.split('\n');
-    buffer = lines.pop();
-    for (const line of lines) {
-      if (line.startsWith('data: ')) {
-        const data = line.replace('data: ', '').trim();
-        if (data === '[DONE]') break;
-        try {
-          const parsed = JSON.parse(data);
-          const delta = parsed.choices?.[0]?.delta?.content;
-          if (delta) {
-            sentenceBuffer += delta;
-            if (isSentenceComplete(sentenceBuffer)) {
-              // Google TTS for this sentence
-              const [ttsResponse] = await client.synthesizeSpeech({
-                input: { text: sentenceBuffer },
-                voice: { languageCode: 'en-US', ssmlGender: 'MALE' },
-                audioConfig: { audioEncoding: 'MP3' },
-              });
-              if (ttsResponse.audioContent) {
-                res.write(Buffer.from(ttsResponse.audioContent, 'base64'));
-              }
-              sentenceBuffer = '';
+  for await (const line of rl) {
+    if (line.startsWith('data: ')) {
+      const data = line.replace('data: ', '').trim();
+      if (data === '[DONE]') break;
+      try {
+        const parsed = JSON.parse(data);
+        const delta = parsed.choices?.[0]?.delta?.content;
+        if (delta) {
+          sentenceBuffer += delta;
+          fullText += delta;
+          if (isSentenceComplete(sentenceBuffer)) {
+            // Google TTS for this sentence
+            const [ttsResponse] = await client.synthesizeSpeech({
+              input: { text: sentenceBuffer },
+              voice: { languageCode: 'en-US', ssmlGender: 'MALE' },
+              audioConfig: { audioEncoding: 'MP3' },
+            });
+            if (ttsResponse.audioContent) {
+              res.write(`--joe-boundary\r\nContent-Type: audio/mpeg\r\n\r\n`);
+              res.write(Buffer.from(ttsResponse.audioContent, 'base64'));
+              res.write('\r\n');
             }
+            sentenceBuffer = '';
           }
-        } catch (e) {
-          // Ignore JSON parse errors for incomplete lines
         }
+      } catch (e) {
+        // Ignore JSON parse errors for incomplete lines
       }
     }
   }
@@ -211,8 +212,14 @@ module.exports = async (req, res) => {
       audioConfig: { audioEncoding: 'MP3' },
     });
     if (ttsResponse.audioContent) {
+      res.write(`--joe-boundary\r\nContent-Type: audio/mpeg\r\n\r\n`);
       res.write(Buffer.from(ttsResponse.audioContent, 'base64'));
+      res.write('\r\n');
     }
   }
+  // Send the full text as the last part
+  res.write(`--joe-boundary\r\nContent-Type: application/json\r\n\r\n`);
+  res.write(JSON.stringify({ text: fullText }));
+  res.write('\r\n--joe-boundary--\r\n');
   res.end();
 }; 
